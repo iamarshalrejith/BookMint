@@ -1,5 +1,11 @@
 package booking
 
+import "errors"
+
+var (
+	ErrSeatAlreadyBooked = errors.New("Seat is already taken")
+)
+
 type Booking struct {
 	ID      string
 	MovieID string
@@ -9,7 +15,7 @@ type Booking struct {
 }
 
 // Any type that wants to behave as a BookingStore must have these two methods.
-type BookingStore interface{
-	Book(b Booking) (Booking,error)
+type BookingStore interface {
+	Book(b Booking) error
 	ListBookings(movieID string) []Booking
 }
