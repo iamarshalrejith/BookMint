@@ -5,10 +5,12 @@ import (
 	"sync"
 	"sync/atomic"
 	"testing"
+
+	"github.com/iamarshalrejith/BookMint/internal/adapters/redis"
 )
 
 func TestConcurrentBooking_ExactlyOneWins(t *testing.T) {
-	store := NewConcurentStore()
+	store := NewRedisStore(redis.NewClient("localhost:6379"))
 	svc := NewService(store)
 
 	const numGoroutines = 100_000 // Pretend 100,000 users are trying to book the same seat at exactly the same time.
