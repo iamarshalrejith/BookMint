@@ -66,14 +66,14 @@ func (s *RedisStore) hold(b Booking) (Booking, error) {
 	},nil
 }
 
-func (s *RedisStore) Book(b Booking) error {
+func (s *RedisStore) Book(b Booking) (Booking,error) {
 	session, err := s.hold(b)
 	if err != nil {
-		return err
+		return Booking{},err
 	}
 
 	log.Printf("Session booked %v", session)
-	return nil
+	return session,nil
 }
 
 func (s *RedisStore) ListBookings(movieID string) []Booking{
@@ -96,6 +96,78 @@ func (s *RedisStore) ListBookings(movieID string) []Booking{
 	}
 
 	return sessions
+}
+
+func (s *RedisStore) Confirm(ctx context.Context, sessionID string, userID string) (Booking, error) {
+    seatKey, err := s.rdb.Get(ctx, sessionKey(sessionID)).Result()
+    if err == redis.Nil {
+        return Booking{}, ErrSessionExpired
+    }
+    if err != nil {
+        return Booking{}, err
+    }
+
+    val, err := s.rdb.Get(ctx, seatKey).Result()
+    if err != nil {
+        return Booking{}, err
+    }
+
+    booking, err := parseSession(val)
+    if err != nil {
+        return Booking{}, err
+    }
+
+    if booking.UserID != userID {
+        return Booking{}, ErrNotSeatOwner
+    }
+
+    booking.Status = "confirmed"
+
+    updated, _ := json.Marshal(booking)
+
+    // overwrite without TTL
+    if err := s.rdb.Set(ctx, seatKey, updated, 0).Err(); err != nil {
+        return Booking{}, err
+    }
+
+    // reverse lookup no longer required
+    s.rdb.Del(ctx, sessionKey(sessionID))
+
+    return booking, nil
+}
+
+func (s *RedisStore) Release(ctx context.Context, sessionID string, userID string) error {
+    seatKey, err := s.rdb.Get(ctx, sessionKey(sessionID)).Result()
+    if err == redis.Nil {
+        return ErrSessionExpired
+    }
+    if err != nil {
+        return err
+    }
+
+    val, err := s.rdb.Get(ctx, seatKey).Result()
+    if err != nil {
+        return err
+    }
+
+    booking, err := parseSession(val)
+    if err != nil {
+        return err
+    }
+
+    if booking.UserID != userID {
+        return ErrNotSeatOwner
+    }
+
+    if err := s.rdb.Del(ctx, seatKey).Err(); err != nil {
+        return err
+    }
+
+    if err := s.rdb.Del(ctx, sessionKey(sessionID)).Err(); err != nil {
+        return err
+    }
+
+    return nil
 }
 
 func parseSession(val string) (Booking, error){

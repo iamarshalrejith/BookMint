@@ -26,7 +26,7 @@ func TestConcurrentBooking_ExactlyOneWins(t *testing.T) {
 	for i := range numGoroutines{
 		go func(userNum int){ // Each iteration starts one goroutine
 			defer wg.Done()
-			err := svc.Book(Booking{
+			_,err := svc.Book(Booking{
 				MovieID: "abc-1",
 				SeatID: "A1",
 				UserID: uuid.New().String(),
